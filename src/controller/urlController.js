@@ -1,6 +1,33 @@
 const urlModel = require("../models/urlModel")
 const shortid = require("shortid");
 const validUrl = require("valid-url");
+const redis = require("redis");
+
+const { promisify } = require("util");
+
+//Connect to redis
+const redisClient = redis.createClient(
+    14199,
+  "redis-14199.c212.ap-south-1-1.ec2.cloud.redislabs.com",
+  { no_ready_check: true }
+);
+redisClient.auth("2UEw18OjdAp2IvqMZ6jfXZfiOd8T2G2i", function (err) {
+  if (err) throw err;
+});
+
+redisClient.on("connect", async function () {
+  console.log("Connected to Redis..");
+});
+
+
+
+//1. connect to the server
+//2. use the commands :
+
+//Connection setup for redis
+
+const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
 
 const isValid = function (value) {
     if (typeof value === 'undefined' || typeof value === null) return false
@@ -89,25 +116,36 @@ const createUrl = async function (req, res) {
     }
 };
 
-
 const getShorturl = async function (req, res) {
-    try {
-        const shortUrlCode = req.params.urlCode;
-        const url = await urlModel.findOne({ urlCode: shortUrlCode });
-
-        if (url) {
-            return res.status(302).redirect(url.longUrl);
-        } else {
-            return res.status(400).send("The short url doesn't exists in our system.");
-        }
+    let cahcedProfileData = await GET_ASYNC(`${req.params.urlCode}`)
+    if(cahcedProfileData) {
+      res.send(cahcedProfileData)
+    } else {
+      let profile = await urlModel.findById(req.params.cahcedProfileData);
+      await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(profile))
+      res.send({ data: profile });
     }
+  
+  };
+
+// const getShorturl = async function (req, res) {
+//     try {
+//         const shortUrlCode = req.params.urlCode;
+//         const url = await urlModel.findOne({ urlCode: shortUrlCode });
+
+//         if (url) {
+//             return res.status(302).redirect(url.longUrl);
+//         } else {
+//             return res.status(400).send("The short url doesn't exists in our system.");
+//         }
+//     }
 
 
-    catch (err) {
-        console.error(err.message);
-        return res.status(500).json("Internal Server error " + err.message);
-    }
-}
+//     catch (err) {
+//         console.error(err.message);
+//         return res.status(500).json("Internal Server error " + err.message);
+//     }
+// }
 
 
 module.exports.createUrl = createUrl;
